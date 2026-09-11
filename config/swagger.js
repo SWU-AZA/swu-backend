@@ -13,7 +13,7 @@ const swaggerDefinition = {
       description: '로컬 개발 서버',
     },
     {
-      url: 'http://43.200.171.53:3000',
+      url: 'http://3.24.8.135',
       description: '원격 배포 서버',
     },
   ],
