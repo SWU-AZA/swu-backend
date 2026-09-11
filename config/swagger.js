@@ -13,7 +13,7 @@ const swaggerDefinition = {
       description: '로컬 개발 서버',
     },
     {
-      url: 'http://43.200.171.53:3000',
+      url: 'http://3.24.8.135',
       description: '원격 배포 서버',
     },
   ],
@@ -255,6 +255,120 @@ const swaggerDefinition = {
             description: '통계 정보',
             content: { 'application/json': { schema: { type: 'object', properties: { total_distance: { type: 'integer', example: 42000 }, total_duration: { type: 'integer', example: 18000 }, total_walks: { type: 'integer', example: 15 }, completed_courses: { type: 'integer', example: 12 } } } } },
           },
+        },
+      },
+    },
+    '/api/users/blocks': {
+      post: {
+        tags: ['회원 - 차단'],
+        summary: '사용자 차단',
+        description: '특정 사용자를 차단 목록에 추가합니다.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['blocked_user_id'],
+                properties: {
+                  blocked_user_id: { type: 'string', format: 'uuid', description: '차단할 사용자 ID' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: '차단 성공',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    block_id: { type: 'string', format: 'uuid' },
+                    blocker_id: { type: 'string', format: 'uuid' },
+                    blocked_id: { type: 'string', format: 'uuid' },
+                    created_at: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: '자기 자신 차단 불가 또는 잘못된 요청' },
+          404: { description: '차단 대상 사용자 없음' },
+          409: { description: '이미 차단한 사용자' },
+        },
+      },
+      get: {
+        tags: ['회원 - 차단'],
+        summary: '내 차단 목록 조회',
+        description: '내가 차단한 사용자 목록을 최신순으로 조회합니다.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+        ],
+        responses: {
+          200: {
+            description: '차단 목록 조회 성공',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    total: { type: 'integer' },
+                    page: { type: 'integer' },
+                    limit: { type: 'integer' },
+                    blocks: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          block_id: { type: 'string', format: 'uuid' },
+                          created_at: { type: 'string', format: 'date-time' },
+                          blocked_user: {
+                            type: 'object',
+                            properties: {
+                              user_id: { type: 'string', format: 'uuid' },
+                              nickname: { type: 'string' },
+                              profile_image_url: { type: 'string', nullable: true },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/users/blocks/{blocked_user_id}': {
+      delete: {
+        tags: ['회원 - 차단'],
+        summary: '사용자 차단 해제',
+        description: '차단했던 사용자를 차단 해제합니다.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'blocked_user_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: {
+            description: '차단 해제 성공',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: '차단이 성공적으로 해제되었습니다.' },
+                  },
+                },
+              },
+            },
+          },
+          404: { description: '차단 내역을 찾을 수 없음' },
         },
       },
     },
@@ -700,6 +814,93 @@ const swaggerDefinition = {
             description: '산책 기록 상세',
             content: { 'application/json': { schema: { type: 'object', properties: { walk_record_id: { type: 'string', format: 'uuid' }, course: { type: 'object' }, actual_route: { type: 'object' }, total_distance: { type: 'integer' }, duration: { type: 'integer' }, is_completed: { type: 'boolean' } } } } },
           },
+        },
+      },
+    },
+
+    // ─────────────────────────────────────────
+    // 업로드 (S3 파일 업로드)
+    // ─────────────────────────────────────────
+    '/api/upload': {
+      post: {
+        tags: ['업로드'],
+        summary: '단일 파일 S3 업로드',
+        description: '이미지 파일 1장을 AWS S3 버킷에 업로드하고 S3 key를 반환합니다. (최대 5MB)',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: {
+                  file: {
+                    type: 'string',
+                    format: 'binary',
+                    description: '업로드할 이미지 파일 (JPG, PNG 등, 최대 5MB)',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: '업로드 성공',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: '업로드 성공' },
+                    key: { type: 'string', example: '1725284000000-profile.png', description: 'S3 객체 Key' },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: '파일 누락 또는 용량 초과 (5MB 제한)' },
+          500: { description: 'S3 업로드 서버 오류' },
+        },
+      },
+    },
+    '/api/upload/{key}': {
+      get: {
+        tags: ['업로드'],
+        summary: '조회용 임시 URL 발급',
+        description: 'Private S3 버킷에 저장된 파일 조회를 위한 Pre-signed URL을 발급합니다. (1시간 유효)',
+        security: [],
+        parameters: [
+          {
+            name: 'key',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            description: 'S3 파일 Key (예: 1725284000000-profile.png 또는 reviews/1725...png)',
+          },
+        ],
+        responses: {
+          200: {
+            description: '임시 URL 발급 성공',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    url: {
+                      type: 'string',
+                      example: 'https://walkbuddy-uploads-2026.s3.ap-southeast-2.amazonaws.com/1725284000000-profile.png?...',
+                      description: '1시간 동안 유효한 S3 다운로드/조회 URL',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          500: { description: 'URL 생성 실패 또는 존재하지 않는 파일' },
         },
       },
     },
